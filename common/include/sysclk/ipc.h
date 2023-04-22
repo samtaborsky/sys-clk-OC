@@ -13,8 +13,8 @@
 #include <stdint.h>
 #include "clocks.h"
 
-#define SYSCLK_IPC_API_VERSION 0
-#define SYSCLK_IPC_SERVICE_NAME "sys:clk"
+#define SYSCLK_IPC_API_VERSION 2
+#define SYSCLK_IPC_SERVICE_NAME "sysclkOC"
 
 enum SysClkIpcCmd
 {
@@ -29,8 +29,12 @@ enum SysClkIpcCmd
     SysClkIpcCmd_SetOverride = 8,
     SysClkIpcCmd_GetConfigValues = 9,
     SysClkIpcCmd_SetConfigValues = 10,
+    SysClkIpcCmd_SetReverseNXRTMode = 11,
+    SysClkIpcCmd_GetFrequencyTable = 12,
+    SysClkIpcCmd_GetIsMariko = 13,
+    SysClkIpcCmd_GetBatteryChargingDisabledOverride = 14,
+    SysClkIpcCmd_SetBatteryChargingDisabledOverride = 15,
 };
-
 
 typedef struct
 {
@@ -43,3 +47,9 @@ typedef struct
     SysClkModule module;
     uint32_t hz;
 } SysClkIpc_SetOverride_Args;
+
+typedef struct
+{
+    SysClkModule module;
+    SysClkProfile profile;
+} SysClkIpc_GetFrequencyTable_Args;

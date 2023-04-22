@@ -36,6 +36,11 @@ class IpcService
     Result SetOverride(SysClkIpc_SetOverride_Args* args);
     Result GetConfigValues(SysClkConfigValueList* out_configValues);
     Result SetConfigValues(SysClkConfigValueList* configValues);
+    Result SetReverseNXRTMode(ReverseNXMode mode);
+    Result GetFrequencyTable(SysClkIpc_GetFrequencyTable_Args* args, SysClkFrequencyTable* out_table);
+    Result GetIsMariko(bool* out_is_mariko);
+    Result GetBatteryChargingDisabledOverride(bool* out_is_true);
+    Result SetBatteryChargingDisabledOverride(bool toggle_true);
 
     bool running;
     Thread thread;

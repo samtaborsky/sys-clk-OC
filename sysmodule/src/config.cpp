@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cstring>
 #include "errors.h"
+#include "clocks.h"
 #include "file_utils.h"
 
 Config::Config(std::string path)
@@ -24,6 +25,7 @@ Config::Config(std::string path)
     this->loaded = false;
     this->profileMhzMap = std::map<std::tuple<std::uint64_t, SysClkProfile, SysClkModule>, std::uint32_t>();
     this->profileCountMap = std::map<std::uint64_t, std::uint8_t>();
+    this->profileGovernorMap = std::map<std::uint64_t, SysClkOcGovernorConfig>();
     this->mtime = 0;
     this->enabled = false;
     for(unsigned int i = 0; i < SysClkModule_EnumMax; i++)
@@ -45,6 +47,9 @@ Config::~Config()
 
 Config *Config::CreateDefault()
 {
+    if (R_FAILED(FileUtils::mkdir_p(FILE_CONFIG_DIR)))
+        ERROR_THROW("Cannot create " FILE_CONFIG_DIR);
+
     return new Config(FILE_CONFIG_DIR "/config.ini");
 }
 
@@ -63,6 +68,9 @@ void Config::Load()
         FileUtils::LogLine("[cfg] Error loading file");
     }
 
+    // Erista: Disable Mariko only features
+    // if (!Clocks::GetIsMariko()) { }
+
     this->loaded = true;
 }
 
@@ -71,6 +79,7 @@ void Config::Close()
     this->loaded = false;
     this->profileMhzMap.clear();
     this->profileCountMap.clear();
+    this->profileGovernorMap.clear();
 
     for(unsigned int i = 0; i < SysClkConfigValue_EnumMax; i++)
     {
@@ -162,6 +171,20 @@ std::uint32_t Config::GetAutoClockHz(std::uint64_t tid, SysClkModule module, Sys
     return 0;
 }
 
+SysClkOcGovernorConfig Config::GetTitleGovernorConfig(std::uint64_t tid)
+{
+    if (this->loaded)
+    {
+        std::map<uint64_t, SysClkOcGovernorConfig>::const_iterator it = this->profileGovernorMap.find(tid);
+        if (it != this->profileGovernorMap.end())
+        {
+            return it->second;
+        }
+    }
+
+    return SysClkOcGovernorConfig_Default;
+}
+
 void Config::GetProfiles(std::uint64_t tid, SysClkTitleProfileList* out_profiles)
 {
     std::scoped_lock lock{this->configMutex};
@@ -173,6 +196,13 @@ void Config::GetProfiles(std::uint64_t tid, SysClkTitleProfileList* out_profiles
             out_profiles->mhzMap[profile][module] = FindClockMhz(tid, (SysClkModule)module, (SysClkProfile)profile);
         }
     }
+
+    std::map<uint64_t, SysClkOcGovernorConfig>::const_iterator it = this->profileGovernorMap.find(tid);
+    SysClkOcGovernorConfig governor = SysClkOcGovernorConfig_Default;
+    // Found
+    if (it != this->profileGovernorMap.end())
+        governor = it->second;
+    out_profiles->governorConfig = governor;
 }
 
 bool Config::SetProfiles(std::uint64_t tid, SysClkTitleProfileList* profiles, bool immediate)
@@ -181,12 +211,12 @@ bool Config::SetProfiles(std::uint64_t tid, SysClkTitleProfileList* profiles, bo
     uint8_t numProfiles = 0;
 
     // String pointer array passed to ini
-    char* iniKeys[SysClkProfile_EnumMax * SysClkModule_EnumMax + 1];
-    char* iniValues[SysClkProfile_EnumMax * SysClkModule_EnumMax + 1];
+    char* iniKeys[static_cast<int>(SysClkProfile_EnumMax) * static_cast<int>(SysClkModule_EnumMax) + 1 + 1];
+    char* iniValues[static_cast<int>(SysClkProfile_EnumMax) * static_cast<int>(SysClkModule_EnumMax) + 1 + 1];
 
     // Char arrays to build strings
-    char keysStr[SysClkProfile_EnumMax * SysClkModule_EnumMax * 0x40];
-    char valuesStr[SysClkProfile_EnumMax * SysClkModule_EnumMax * 0x10];
+    char keysStr[static_cast<int>(SysClkProfile_EnumMax) * static_cast<int>(SysClkModule_EnumMax) * 0x40];
+    char valuesStr[static_cast<int>(SysClkProfile_EnumMax) * static_cast<int>(SysClkModule_EnumMax) * 0x10];
     char section[17] = {0};
 
     // Iteration pointers
@@ -225,6 +255,13 @@ bool Config::SetProfiles(std::uint64_t tid, SysClkTitleProfileList* profiles, bo
         }
     }
 
+    if (profiles->governorConfig != SysClkOcGovernorConfig_Default) {
+        snprintf(sk, 0x40, "%s", CONFIG_KEY_TITLE_GOVERNOR_CONFIG);
+        snprintf(sv, 0x10, "%d", profiles->governorConfig);
+        *ik++ = sk;
+        *iv++ = sv;
+    }
+
     *ik = NULL;
     *iv = NULL;
 
@@ -253,6 +290,11 @@ bool Config::SetProfiles(std::uint64_t tid, SysClkTitleProfileList* profiles, bo
                 mhz++;
             }
         }
+
+        if (profiles->governorConfig == SysClkOcGovernorConfig_Default)
+            this->profileGovernorMap.erase(tid);
+        else
+            this->profileGovernorMap[tid] = profiles->governorConfig;
     }
 
     return true;
@@ -302,6 +344,16 @@ int Config::BrowseIniFunc(const char* section, const char* key, const char* valu
         return 1;
     }
 
+    if (!strcmp(key, CONFIG_KEY_TITLE_GOVERNOR_CONFIG)) {
+        input = strtoul(value, NULL, 0);
+        if ((input & SysClkOcGovernorConfig_Mask) != input) {
+            input = SysClkOcGovernorConfig_Default;
+            FileUtils::LogLine("[cfg] Invalid value for key '%s' in section '%s': using default %d", key, section, input);
+        }
+        config->profileGovernorMap[tid] = (SysClkOcGovernorConfig)input;
+        return 1;
+    }
+
     SysClkProfile parsedProfile = SysClkProfile_EnumMax;
     SysClkModule parsedModule = SysClkModule_EnumMax;
 
@@ -338,6 +390,11 @@ int Config::BrowseIniFunc(const char* section, const char* key, const char* valu
     {
         FileUtils::LogLine("[cfg] Skipping key '%s' in section '%s': Invalid value", key, section);
         return 1;
+    }
+
+    // Mem freq > 1600'000'000 will be regarded as Clocks::maxMemFreq for consistency
+    if (parsedModule == SysClkModule_MEM && mhz > 1600) {
+        mhz = Clocks::maxMemFreq / 1000'000;
     }
 
     config->profileMhzMap[std::make_tuple(tid, parsedProfile, parsedModule)] = mhz;

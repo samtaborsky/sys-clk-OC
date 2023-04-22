@@ -14,20 +14,20 @@
 
 #include "base_menu_gui.h"
 
-using FreqChoiceListener = std::function<bool(std::uint32_t hz)>;
+using FreqChoiceListener = std::function<bool(std::uint32_t mhz)>;
 
 #define FREQ_DEFAULT_TEXT "Do not override"
 
 class FreqChoiceGui : public BaseMenuGui
 {
     protected:
-        std::uint32_t selectedHz;
-        std::uint32_t* hzList;
+        std::uint32_t selectedMHz;
+        SysClkFrequencyTable* hzTable;
         FreqChoiceListener listener;
-        tsl::elm::ListItem* createFreqListItem(std::uint32_t hz, bool selected);
+        tsl::elm::ListItem* createFreqListItem(std::uint32_t mhz, bool selected);
 
     public:
-        FreqChoiceGui(std::uint32_t selectedHz, std::uint32_t* hzList, FreqChoiceListener listener);
-        ~FreqChoiceGui() {}
+        FreqChoiceGui(std::uint32_t selectedMHz, SysClkModule module, SysClkProfile profile, FreqChoiceListener listener);
+        ~FreqChoiceGui();
         void listUI() override;
 };

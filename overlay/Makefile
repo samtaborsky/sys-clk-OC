@@ -26,13 +26,13 @@ DATA		:=	data
 INCLUDES	:=	../common/include
 EXEFS_SRC	:=	exefs_src
 
-APP_TITLE	:=	sys-clk
+APP_TITLE	:=	sys-clk-OC
 NO_ICON		:=	1
 
 #---------------------------------------------------------------------------------
 # version control constants
 #---------------------------------------------------------------------------------
-TARGET_VERSION	:= $(shell git describe --dirty --always --tags)
+TARGET_VERSION	:= $$(date +%Y/%m/%d)
 APP_VERSION		:= $(TARGET_VERSION)
 
 #---------------------------------------------------------------------------------

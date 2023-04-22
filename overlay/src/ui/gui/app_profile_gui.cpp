@@ -24,10 +24,10 @@ AppProfileGui::~AppProfileGui()
     delete this->profileList;
 }
 
-void AppProfileGui::openFreqChoiceGui(tsl::elm::ListItem* listItem, SysClkProfile profile, SysClkModule module, std::uint32_t* hzList)
+void AppProfileGui::openFreqChoiceGui(tsl::elm::ListItem* listItem, SysClkProfile profile, SysClkModule module)
 {
-    tsl::changeTo<FreqChoiceGui>(this->profileList->mhzMap[profile][module] * 1000000, hzList, [this, listItem, profile, module](std::uint32_t hz) {
-        this->profileList->mhzMap[profile][module] = hz / 1000000;
+    tsl::changeTo<FreqChoiceGui>(this->profileList->mhzMap[profile][module], module, profile, [this, listItem, profile, module](std::uint32_t mhz) {
+        this->profileList->mhzMap[profile][module] = mhz;
         listItem->setValue(formatListFreqMhz(this->profileList->mhzMap[profile][module]));
         Result rc = sysclkIpcSetProfiles(this->applicationId, this->profileList);
         if(R_FAILED(rc))
@@ -40,14 +40,14 @@ void AppProfileGui::openFreqChoiceGui(tsl::elm::ListItem* listItem, SysClkProfil
     });
 }
 
-void AppProfileGui::addModuleListItem(SysClkProfile profile, SysClkModule module, std::uint32_t* hzList)
+void AppProfileGui::addModuleListItem(SysClkProfile profile, SysClkModule module)
 {
     tsl::elm::ListItem* listItem = new tsl::elm::ListItem(sysclkFormatModule(module, true));
     listItem->setValue(formatListFreqMhz(this->profileList->mhzMap[profile][module]));
-    listItem->setClickListener([this, listItem, profile, module, hzList](u64 keys) {
+    listItem->setClickListener([this, listItem, profile, module](u64 keys) {
         if((keys & HidNpadButton_A) == HidNpadButton_A)
         {
-            this->openFreqChoiceGui(listItem, profile, module, hzList);
+            this->openFreqChoiceGui(listItem, profile, module);
             return true;
         }
 
@@ -60,13 +60,45 @@ void AppProfileGui::addModuleListItem(SysClkProfile profile, SysClkModule module
 void AppProfileGui::addProfileUI(SysClkProfile profile)
 {
     this->listElement->addItem(new tsl::elm::CategoryHeader(sysclkFormatProfile(profile, true)));
-    this->addModuleListItem(profile, SysClkModule_CPU, &sysclk_g_freq_table_cpu_hz[0]);
-    this->addModuleListItem(profile, SysClkModule_GPU, &sysclk_g_freq_table_gpu_hz[0]);
-    this->addModuleListItem(profile, SysClkModule_MEM, &sysclk_g_freq_table_mem_hz[0]);
+    this->addModuleListItem(profile, SysClkModule_CPU);
+    this->addModuleListItem(profile, SysClkModule_GPU);
+    this->addModuleListItem(profile, SysClkModule_MEM);
 }
 
 void AppProfileGui::listUI()
 {
+    if (this->applicationId != SYSCLK_GLOBAL_PROFILE_TID) {
+        SysClkConfigValueList* configList = new SysClkConfigValueList;
+        sysclkIpcGetConfigValues(configList);
+        bool globalGovernorEnabled = configList->values[SysClkConfigValue_GovernorExperimental];
+
+        if (globalGovernorEnabled) {
+            tsl::elm::ToggleListItem* cpuGovernorToggle = new tsl::elm::ToggleListItem("CPU Freq Governor",
+                GetGovernorEnabled(this->profileList->governorConfig, SysClkModule_CPU));
+            cpuGovernorToggle->setStateChangedListener([this](bool state) {
+                this->profileList->governorConfig = ToggleGovernor(this->profileList->governorConfig, SysClkModule_CPU, state);
+
+                Result rc = sysclkIpcSetProfiles(this->applicationId, this->profileList);
+                if (R_FAILED(rc))
+                    FatalGui::openWithResultCode("sysclkIpcSetProfiles", rc);
+            });
+            this->listElement->addItem(cpuGovernorToggle);
+
+            tsl::elm::ToggleListItem* gpuGovernorToggle = new tsl::elm::ToggleListItem("GPU Freq Governor",
+                GetGovernorEnabled(this->profileList->governorConfig, SysClkModule_GPU));
+            gpuGovernorToggle->setStateChangedListener([this](bool state) {
+                this->profileList->governorConfig = ToggleGovernor(this->profileList->governorConfig, SysClkModule_GPU, state);
+
+                Result rc = sysclkIpcSetProfiles(this->applicationId, this->profileList);
+                if (R_FAILED(rc))
+                    FatalGui::openWithResultCode("sysclkIpcSetProfiles", rc);
+            });
+            this->listElement->addItem(gpuGovernorToggle);
+        }
+
+        delete configList;
+    }
+
     this->addProfileUI(SysClkProfile_Docked);
     this->addProfileUI(SysClkProfile_Handheld);
     this->addProfileUI(SysClkProfile_HandheldCharging);
@@ -92,7 +124,7 @@ void AppProfileGui::update()
 {
     BaseMenuGui::update();
 
-    if(this->context && this->applicationId != this->context->applicationId)
+    if(this->context && this->applicationId != SYSCLK_GLOBAL_PROFILE_TID && this->applicationId != this->context->applicationId)
     {
         tsl::changeTo<FatalGui>(
             "Application changed\n\n"

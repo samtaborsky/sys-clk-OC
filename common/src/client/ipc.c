@@ -114,3 +114,32 @@ Result sysclkIpcSetConfigValues(SysClkConfigValueList* configValues)
 {
     return serviceDispatchIn(&g_sysclkSrv, SysClkIpcCmd_SetConfigValues, *configValues);
 }
+
+Result sysclkIpcSetReverseNXRTMode(ReverseNXMode mode)
+{
+    return serviceDispatchIn(&g_sysclkSrv, SysClkIpcCmd_SetReverseNXRTMode, mode);
+}
+
+Result sysclkIpcGetFrequencyTable(SysClkModule module, SysClkProfile profile, SysClkFrequencyTable* out_table)
+{
+    SysClkIpc_GetFrequencyTable_Args args = {
+        .module = module,
+        .profile = profile,
+    };
+    return serviceDispatchInOut(&g_sysclkSrv, SysClkIpcCmd_GetFrequencyTable, args, *out_table);
+}
+
+Result sysclkIpcGetIsMariko(bool* out_is_mariko)
+{
+    return serviceDispatchOut(&g_sysclkSrv, SysClkIpcCmd_GetIsMariko, *out_is_mariko);
+}
+
+Result sysclkIpcGetBatteryChargingDisabledOverride(bool* out_is_true)
+{
+    return serviceDispatchOut(&g_sysclkSrv, SysClkIpcCmd_GetBatteryChargingDisabledOverride, *out_is_true);
+}
+
+Result sysclkIpcSetBatteryChargingDisabledOverride(bool toggle_true)
+{
+    return serviceDispatchIn(&g_sysclkSrv, SysClkIpcCmd_SetBatteryChargingDisabledOverride, toggle_true);
+}

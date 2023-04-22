@@ -10,6 +10,10 @@
 
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "types.h"
 #include "../config.h"
 #include "../clocks.h"
@@ -30,8 +34,17 @@ Result sysclkIpcGetProfiles(u64 tid, SysClkTitleProfileList* out_profiles);
 Result sysclkIpcSetProfiles(u64 tid, SysClkTitleProfileList* profiles);
 Result sysclkIpcGetConfigValues(SysClkConfigValueList* out_configValues);
 Result sysclkIpcSetConfigValues(SysClkConfigValueList* configValues);
+Result sysclkIpcSetReverseNXRTMode(ReverseNXMode mode);
+Result sysclkIpcGetFrequencyTable(SysClkModule module, SysClkProfile profile, SysClkFrequencyTable* out_table);
+Result sysclkIpcGetIsMariko(bool* out_is_mariko);
+Result sysclkIpcGetBatteryChargingDisabledOverride(bool* out_is_true);
+Result sysclkIpcSetBatteryChargingDisabledOverride(bool toggle_true);
 
 static inline Result sysclkIpcRemoveOverride(SysClkModule module)
 {
     return sysclkIpcSetOverride(module, 0);
 }
+
+#ifdef __cplusplus
+}
+#endif

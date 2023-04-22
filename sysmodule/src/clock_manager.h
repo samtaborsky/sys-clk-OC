@@ -17,6 +17,12 @@
 #include "clocks.h"
 #include <nxExt/cpp/lockable_mutex.h>
 
+#include "oc_extra.h"
+
+// Forward declaration
+class ReverseNXSync;
+class Governor;
+
 class ClockManager
 {
   public:
@@ -28,14 +34,18 @@ class ClockManager
     bool Running();
     void Tick();
     void WaitForNextTick();
+    void SetRNXRTMode(ReverseNXMode mode);
     SysClkContext GetCurrentContext();
     Config* GetConfig();
+    bool GetBatteryChargingDisabledOverride();
+    Result SetBatteryChargingDisabledOverride(bool toggle_true);
 
   protected:
     ClockManager();
     virtual ~ClockManager();
 
     bool RefreshContext();
+    uint32_t GetHz(SysClkModule);
 
     static ClockManager *instance;
     std::atomic_bool running;
@@ -44,4 +54,8 @@ class ClockManager
     SysClkContext *context;
     std::uint64_t lastTempLogNs;
     std::uint64_t lastCsvWriteNs;
+
+    SysClkOcExtra *oc;
+    ReverseNXSync *rnxSync;
+    Governor *governor;
 };

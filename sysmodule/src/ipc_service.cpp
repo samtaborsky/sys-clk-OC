@@ -144,13 +144,40 @@ Result IpcService::ServiceHandlerFunc(void* arg, const IpcServerRequest* r, u8* 
             break;
 
         case SysClkIpcCmd_GetConfigValues:
-            *out_dataSize = sizeof(SysClkTitleProfileList);
+            *out_dataSize = sizeof(SysClkConfigValueList);
             return ipcSrv->GetConfigValues((SysClkConfigValueList*)out_data);
 
         case SysClkIpcCmd_SetConfigValues:
             if(r->data.size >= sizeof(SysClkConfigValueList))
             {
                 return ipcSrv->SetConfigValues((SysClkConfigValueList*)r->data.ptr);
+            }
+            break;
+
+        case SysClkIpcCmd_SetReverseNXRTMode:
+            if (r->data.size >= sizeof(ReverseNXMode)) {
+                ReverseNXMode mode = *((ReverseNXMode*)r->data.ptr);
+                return ipcSrv->SetReverseNXRTMode(mode);
+            }
+            break;
+        case SysClkIpcCmd_GetFrequencyTable:
+            if(r->data.size >= sizeof(SysClkIpc_GetFrequencyTable_Args))
+            {
+                SysClkIpc_GetFrequencyTable_Args* in_args = (SysClkIpc_GetFrequencyTable_Args*)r->data.ptr;
+                *out_dataSize = sizeof(SysClkFrequencyTable);
+                return ipcSrv->GetFrequencyTable(in_args, (SysClkFrequencyTable*)out_data);
+            }
+            break;
+        case SysClkIpcCmd_GetIsMariko:
+            *out_dataSize = sizeof(bool);
+            return ipcSrv->GetIsMariko((bool*)out_data);
+        case SysClkIpcCmd_GetBatteryChargingDisabledOverride:
+            *out_dataSize = sizeof(bool);
+            return ipcSrv->GetBatteryChargingDisabledOverride((bool*)out_data);
+        case SysClkIpcCmd_SetBatteryChargingDisabledOverride:
+            if (r->data.size >= sizeof(bool)) {
+                bool toggle_true = *((bool*)(r->data.ptr));
+                return ipcSrv->SetBatteryChargingDisabledOverride(toggle_true);
             }
             break;
     }
@@ -289,3 +316,28 @@ Result IpcService::SetConfigValues(SysClkConfigValueList* configValues)
 
     return 0;
 }
+
+Result IpcService::SetReverseNXRTMode(ReverseNXMode mode) {
+    ClockManager::GetInstance()->SetRNXRTMode(mode);
+    return 0;
+}
+
+Result IpcService::GetFrequencyTable(SysClkIpc_GetFrequencyTable_Args* args, SysClkFrequencyTable* out_table) {
+    return Clocks::GetTable(args->module, args->profile, out_table);
+}
+
+Result IpcService::GetIsMariko(bool* out_is_mariko) {
+    *out_is_mariko = Clocks::GetIsMariko();
+    return 0;
+}
+
+Result IpcService::GetBatteryChargingDisabledOverride(bool* out_is_true) {
+    *out_is_true = ClockManager::GetInstance()->GetBatteryChargingDisabledOverride();
+    return 0;
+}
+
+
+Result IpcService::SetBatteryChargingDisabledOverride(bool toggle_true) {
+    return ClockManager::GetInstance()->SetBatteryChargingDisabledOverride(toggle_true);
+}
+
